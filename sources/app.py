@@ -1,17 +1,11 @@
-import asyncio
 import discord
 import os
 
-from datetime import date, datetime
-from discord import channel
-from discord import message
-from discord import voice_client
+from discord import player
 from discord.ext import commands
 from dotenv import load_dotenv
-from http import server
-from types import coroutine
-from youtube_dl import main
 from engines.ytdl import YTDLSource
+from utils.player import Player
 
 load_dotenv()
 
@@ -20,18 +14,15 @@ load_dotenv()
 DISCORD_TOKEN = os.getenv('discord_token')
 COMMAND_PREFIX = os.getenv('command_prefix')
 
-# https://stackoverflow.com/a/62114462
-FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
-
-# State
-
-songs_queue = list()
-
 # Bot configuration
 
 intents = discord.Intents().all()
 client = discord.Client(intents = intents)
 bot = commands.Bot(command_prefix = COMMAND_PREFIX, client = client)
+
+# Player configuration
+
+player = Player(bot)
 
 # Bot events
 
@@ -40,29 +31,6 @@ async def on_ready():
     print("The bot is configured and ready to work!")
 
 # Bot commands
-
-def play_song(ctx, client, url):
-    audio_info = YTDLSource.get_info(url)
-    audio = discord.FFmpegOpusAudio(source = audio_info.url, executable = "./ffmpeg", before_options = FFMPEG_OPTIONS)
-
-    def after(error):
-        if songs_queue:
-            song = songs_queue.pop(0)
-            play_song(ctx, client, song)
-        else:
-            asyncio.run_coroutine_threadsafe(client.disconnect(), bot.loop)
-
-    client.play(audio, after = after)
-
-    embed = discord.Embed(
-        title = audio_info.title,
-        url = url,
-        color = discord.Color.blue()
-    )
-    if audio_info.duration:
-        embed.add_field(name = "Duration", value = audio_info.duration, inline = True)    
-    
-    asyncio.run_coroutine_threadsafe(ctx.send(embed = embed),  bot.loop)
 
 @bot.command(name = 'play', help = 'Tells the bot to play the song')
 async def play(ctx, url):
@@ -74,8 +42,8 @@ async def play(ctx, url):
         if not voice_channel:
             await join(ctx)
             voice_channel = server.voice_client
-
-        play_song(ctx, voice_channel, url)
+        
+        player.play_song(ctx, voice_channel, url)
     
     except Exception as e:
         print(e)
@@ -107,7 +75,27 @@ async def stop(ctx):
 
 @bot.command(name = 'queue', help = "Puts the song in the queue")
 async def queue(ctx, url):
-    songs_queue.append(url)
+    player.add_song_to_queue(url)
+
+@bot.command(name = 'clear', help = "Removes all tracks from the current queue")
+async def clear(ctx):
+    if player.current_queue():
+        player.clear_queue()
+        await ctx.send("Queue has been cleared")
+    else:
+        await ctx.send("Queue is empty already")
+
+@bot.command(name = 'show_queue', help = "Shows list of tracks from the current queue")
+async def show_queue(ctx):
+    description = ""
+    for (index, song) in enumerate(player.current_queue()):
+        description += "{}. {}\n".format(index + 1, YTDLSource.get_info(song).title)
+    embed = discord.Embed(
+        title = "Playlist",
+        description = description or "There are no songs in the queue currently 😴",
+        color = discord.Color.blue()
+    )
+    await ctx.send(embed = embed)
 
 @bot.command(help = 'Tells the bot to join the voice channel')
 async def join(ctx):
