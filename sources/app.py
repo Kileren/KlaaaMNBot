@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from http import server
 from types import coroutine
 from youtube_dl import main
-from ytdl import YTDLSource
+from engines.ytdl import YTDLSource
 
 load_dotenv()
 
@@ -63,7 +63,6 @@ def play_song(ctx, client, url):
         embed.add_field(name = "Duration", value = audio_info.duration, inline = True)    
     
     asyncio.run_coroutine_threadsafe(ctx.send(embed = embed),  bot.loop)
-
 
 @bot.command(name = 'play', help = 'Tells the bot to play the song')
 async def play(ctx, url):

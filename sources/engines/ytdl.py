@@ -1,8 +1,8 @@
 import discord
 import youtube_dl
-import utils
 
-from Models.audioInfo import AudioInfo
+from models.audioInfo import AudioInfo
+from utils.utils import format_duration
 
 youtube_dl.utils.bug_reports_message = lambda: ''
 
@@ -29,6 +29,6 @@ class YTDLSource(discord.PCMVolumeTransformer):
         if 'entries' in info:
             info = info['entries'][0]
         title = info['title']
-        duration = utils.format_duration(int(info['duration'])) if 'duration' in info else None
+        duration = format_duration(int(info['duration'])) if 'duration' in info else None
         url = info['formats'][0]['url']
         return AudioInfo(title, url, duration)
