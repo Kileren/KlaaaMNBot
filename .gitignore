@@ -1,7 +1,5 @@
-# For project
-Music/*
+# Project-specific
 ffmpeg
-!.gitignore
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

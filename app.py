@@ -1,13 +1,17 @@
-from datetime import date, datetime
+import asyncio
 import discord
 import os
 
-from discord import message
+from datetime import date, datetime
 from discord import channel
+from discord import message
 from discord import voice_client
-from ytdl import YTDLSource
 from discord.ext import commands
 from dotenv import load_dotenv
+from http import server
+from types import coroutine
+from youtube_dl import main
+from ytdl import YTDLSource
 
 load_dotenv()
 
@@ -15,6 +19,13 @@ load_dotenv()
 
 DISCORD_TOKEN = os.getenv('discord_token')
 COMMAND_PREFIX = os.getenv('command_prefix')
+
+# https://stackoverflow.com/a/62114462
+FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5', 'options': '-vn'}
+
+# State
+
+songs_queue = list()
 
 # Bot configuration
 
@@ -30,6 +41,30 @@ async def on_ready():
 
 # Bot commands
 
+def play_song(ctx, client, url):
+    audio_info = YTDLSource.get_info(url)
+    audio = discord.FFmpegOpusAudio(source = audio_info.url, executable = "./ffmpeg", before_options = FFMPEG_OPTIONS)
+
+    def after(error):
+        if songs_queue:
+            song = songs_queue.pop(0)
+            play_song(ctx, client, song)
+        else:
+            asyncio.run_coroutine_threadsafe(client.disconnect(), bot.loop)
+
+    client.play(audio, after = after)
+
+    embed = discord.Embed(
+        title = audio_info.title,
+        url = url,
+        color = discord.Color.blue()
+    )
+    if audio_info.duration:
+        embed.add_field(name = "Duration", value = audio_info.duration, inline = True)    
+    
+    asyncio.run_coroutine_threadsafe(ctx.send(embed = embed),  bot.loop)
+
+
 @bot.command(name = 'play', help = 'Tells the bot to play the song')
 async def play(ctx, url):
     try:
@@ -41,22 +76,10 @@ async def play(ctx, url):
             await join(ctx)
             voice_channel = server.voice_client
 
-        async with ctx.typing():
-            audio_info = await YTDLSource.from_url(url, loop = bot.loop)
-            audio = discord.FFmpegOpusAudio(source = audio_info.filename, executable = "./ffmpeg")
-            voice_channel.play(audio)
-        
-        embed = discord.Embed(
-            title = audio_info.title,
-            url = url,
-            color = discord.Color.blue()
-        )
-        if audio_info.duration:
-            embed.add_field(name = "Duration", value = audio_info.duration, inline = True)
-        
-        await ctx.send(embed = embed)
+        play_song(ctx, voice_channel, url)
     
     except Exception as e:
+        print(e)
         await ctx.send("The bot is not connected to a voice channel")
 
 @bot.command(name = "pause", help = "Pauses the playing song")
@@ -82,6 +105,10 @@ async def stop(ctx):
         voice_client.stop()
     else:
         await ctx.send("The bot is not playing anything at the moment")
+
+@bot.command(name = 'queue', help = "Puts the song in the queue")
+async def queue(ctx, url):
+    songs_queue.append(url)
 
 @bot.command(help = 'Tells the bot to join the voice channel')
 async def join(ctx):
