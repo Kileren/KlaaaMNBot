@@ -17,7 +17,7 @@ class Player:
 
     def play_song(self, ctx, client, url):
         audio_info = YTDLSource.get_info(url)
-        audio = discord.FFmpegOpusAudio(source = audio_info.url, executable = "./ffmpeg", before_options = FFMPEG_OPTIONS)
+        audio = discord.FFmpegOpusAudio(source = audio_info.url, bitrate = 320, executable = "./ffmpeg", before_options = FFMPEG_OPTIONS)
         
         def after(error):
             if self.__songs_queue:
